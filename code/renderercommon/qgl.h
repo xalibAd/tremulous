@@ -26,7 +26,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __QGL_H__
 #define __QGL_H__
 
-#ifdef USE_INTERNAL_SDL_HEADERS
+#if defined(USE_SDL3)
+#	include <SDL3/SDL_opengl.h>
+#elif defined(USE_INTERNAL_SDL_HEADERS)
 #	include "SDL_opengl.h"
 #else
 #	include <SDL_opengl.h>

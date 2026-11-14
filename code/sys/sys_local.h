@@ -24,19 +24,27 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/qcommon.h"
 
 #ifndef DEDICATED
-#ifdef USE_INTERNAL_SDL_HEADERS
+#if defined(USE_SDL3)
+#	include <SDL3/SDL_version.h>
+#elif defined(USE_INTERNAL_SDL_HEADERS)
 #	include "SDL_version.h"
 #else
 #	include <SDL_version.h>
 #endif
 
 // Require a minimum version of SDL
+#ifdef USE_SDL3
+#define MINSDL_MAJOR 3
+#define MINSDL_MINOR 2
+#define MINSDL_PATCH 0
+#else
 #define MINSDL_MAJOR 2
 #define MINSDL_MINOR 0
 #if SDL_VERSION_ATLEAST( 2, 0, 5 )
 #define MINSDL_PATCH 5
 #else
 #define MINSDL_PATCH 0
+#endif
 #endif
 #endif
 

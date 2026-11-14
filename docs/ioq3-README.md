@@ -176,6 +176,8 @@ The following CMake variables may be set, using `-D` on the command line.
   USE_MUMBLE              - enable Mumble support
   USE_VOIP                - enable built-in VoIP support
   USE_FREETYPE            - enable FreeType support for rendering fonts
+  USE_SDL3                - build against SDL3 instead of SDL2; this needs SDL3 to
+                            be installed as there are no internal SDL3 binaries
 
   USE_INTERNAL_LIBS       - build internal libraries instead of dynamically
                             linking against system libraries; this just sets

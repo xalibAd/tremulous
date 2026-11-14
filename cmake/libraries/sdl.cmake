@@ -9,6 +9,17 @@ if(EMSCRIPTEN)
     return()
 endif()
 
+if(USE_SDL3)
+    # There are no internal SDL3 binaries, so this needs SDL3 to be installed
+    find_package(SDL3 REQUIRED CONFIG)
+
+    list(APPEND CLIENT_DEFINITIONS USE_SDL3)
+    list(APPEND RENDERER_DEFINITIONS USE_SDL3)
+    list(APPEND CLIENT_LIBRARIES SDL3::SDL3)
+    list(APPEND RENDERER_LIBRARIES SDL3::SDL3)
+    return()
+endif()
+
 set(INTERNAL_SDL_DIR ${SOURCE_DIR}/thirdparty/SDL2-${SDL_VERSION})
 
 include(utils/arch)

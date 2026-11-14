@@ -29,6 +29,8 @@ option(USE_VOIP "Voice chat" ON)
 option(USE_MUMBLE "Mumble support" ON)
 option(USE_FREETYPE "Freetype font rendering" OFF)
 
+option(USE_SDL3 "Build against SDL3 instead of SDL2 (requires a system SDL3)" OFF)
+
 option(USE_INTERNAL_LIBS "Use internally packaged libraries" ON)
 option(USE_INTERNAL_SDL "Use internal SDL binary (if available)" ${USE_INTERNAL_LIBS})
 option(USE_INTERNAL_ZLIB "Use internal copy of zlib" ${USE_INTERNAL_LIBS})
@@ -91,6 +93,15 @@ if(DEFINED ENV{SOURCE_DATE_EPOCH})
 endif()
 
 set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/code)
+
+if(USE_SDL3)
+    if(EMSCRIPTEN)
+        message(FATAL_ERROR "USE_SDL3 is not supported with Emscripten")
+    endif()
+    set(SDL_SOURCE_DIR ${SOURCE_DIR}/sdl3)
+else()
+    set(SDL_SOURCE_DIR ${SOURCE_DIR}/sdl)
+endif()
 
 include(compilers/all)
 include(platforms/all)

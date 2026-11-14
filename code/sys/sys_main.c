@@ -36,7 +36,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 #ifndef DEDICATED
-#ifdef USE_INTERNAL_SDL_HEADERS
+#if defined(USE_SDL3)
+#	include <SDL3/SDL.h>
+#elif defined(USE_INTERNAL_SDL_HEADERS)
 #	include "SDL.h"
 #	include "SDL_cpuinfo.h"
 #else
@@ -341,8 +343,11 @@ cpuFeatures_t Sys_GetProcessorFeatures( void )
 	cpuFeatures_t features = 0;
 
 #ifndef DEDICATED
+#ifndef USE_SDL3
+	// SDL3 no longer reports these
 	if( SDL_HasRDTSC( ) )      features |= CF_RDTSC;
 	if( SDL_Has3DNow( ) )      features |= CF_3DNOW;
+#endif
 	if( SDL_HasMMX( ) )        features |= CF_MMX;
 	if( SDL_HasSSE( ) )        features |= CF_SSE;
 	if( SDL_HasSSE2( ) )       features |= CF_SSE2;
@@ -803,8 +808,17 @@ int main( int argc, char **argv )
 #	endif
 
 	// Run time
+#ifdef USE_SDL3
+	struct { int major, minor, patch; } ver;
+	int linked = SDL_GetVersion( );
+
+	ver.major = SDL_VERSIONNUM_MAJOR( linked );
+	ver.minor = SDL_VERSIONNUM_MINOR( linked );
+	ver.patch = SDL_VERSIONNUM_MICRO( linked );
+#else
 	SDL_version ver;
 	SDL_GetVersion( &ver );
+#endif
 
 #define MINSDL_VERSION \
 	XSTRING(MINSDL_MAJOR) "." \
