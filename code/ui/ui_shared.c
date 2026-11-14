@@ -2017,9 +2017,9 @@ float UI_Char_Width( const char **text, float scale )
       }
     }
 
+    glyph = &font->glyphs[ (unsigned char)**text ];
     (*text)++;
 
-    glyph = &font->glyphs[ (int)**text ];
     return glyph->xSkip * DC->aspectScale * scale * font->glyphScale;
   }
 
