@@ -219,8 +219,15 @@ void Con_CheckResize (void)
 
 	if (con_scale != NULL)
 	{
-		g_smallchar_width = (int)((float)SMALLCHAR_WIDTH * con_scale->value);
-		g_smallchar_height = (int)((float)SMALLCHAR_HEIGHT * con_scale->value);
+		float scale = con_scale->value;
+
+		// 0 picks an integer scale to suit the resolution so that the
+		// console remains legible on high resolution displays
+		if (scale <= 0.0f)
+			scale = Com_Clamp(1.0f, 4.0f, (float)(cls.glconfig.vidHeight / 720));
+
+		g_smallchar_width = (int)((float)SMALLCHAR_WIDTH * scale);
+		g_smallchar_height = (int)((float)SMALLCHAR_HEIGHT * scale);
 	}
 
 	width = (cls.glconfig.vidWidth / g_smallchar_width) - 2;
@@ -296,8 +303,8 @@ void Con_Init (void) {
 
 	con_conspeed = Cvar_Get ("scr_conspeed", "3", 0);
 	con_autoclear = Cvar_Get("con_autoclear", "1", CVAR_ARCHIVE);
-	con_scale = Cvar_Get("con_scale", "1", CVAR_ARCHIVE);
-	Cvar_CheckRange(con_scale, 1.0f, 4.0f, qfalse);
+	con_scale = Cvar_Get("con_scale", "0", CVAR_ARCHIVE);
+	Cvar_CheckRange(con_scale, 0.0f, 4.0f, qfalse);
 
 	Field_Clear( &g_consoleField );
 	g_consoleField.widthInChars = g_console_field_width;
