@@ -90,6 +90,264 @@ FT_Library ftLibrary = NULL;
 static int registeredFontCount = 0;
 static fontInfo_t registeredFont[MAX_FONTS];
 
+// Scalable TrueType fonts, rasterized with stb_truetype. Unlike the FreeType
+// path and the prerendered fontImage_*.dat files, glyphs are rendered at the
+// size they will appear on screen at, so text stays sharp at any resolution.
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "../thirdparty/stb/stb_truetype.h"
+
+#define TTF_DEFAULT_FONT   "fonts/font"
+#define TTF_MIN_ATLAS_SIZE 256
+#define TTF_MAX_ATLAS_SIZE 2048
+#define TTF_GLYPH_PADDING  1
+
+static cvar_t *r_scalableFonts;
+
+typedef struct {
+	int glyphIndex;
+	int x0, y0, x1, y1; // bitmap box relative to the pen position
+	int padLeft;        // blank columns for the left side bearing
+	int x, y;           // position of the cell in the atlas
+} ttfGlyph_t;
+
+static qboolean R_IsPrintableGlyph(int c) {
+	return (c >= 32 && c < 127) || c >= 160;
+}
+
+/*
+===============
+R_LayoutTrueTypeFont
+
+Measure every glyph at the given scale and pack them in rows in to a square
+atlas. Returns qfalse if they do not fit.
+===============
+*/
+static qboolean R_LayoutTrueTypeFont(const stbtt_fontinfo *info, float scale, int atlasSize, ttfGlyph_t *glyphs) {
+	int i, x, y, rowHeight;
+
+	x = y = TTF_GLYPH_PADDING;
+	rowHeight = 0;
+
+	for (i = GLYPH_START; i <= GLYPH_END; i++) {
+		ttfGlyph_t *g = &glyphs[i];
+		int width, height;
+
+		Com_Memset(g, 0, sizeof(*g));
+
+		if (!R_IsPrintableGlyph(i)) {
+			continue;
+		}
+
+		g->glyphIndex = stbtt_FindGlyphIndex(info, i);
+		if (g->glyphIndex == 0) {
+			continue;
+		}
+
+		stbtt_GetGlyphBitmapBox(info, g->glyphIndex, scale, scale, &g->x0, &g->y0, &g->x1, &g->y1);
+
+		g->padLeft = g->x0 > 0 ? g->x0 : 0;
+		width = g->padLeft + (g->x1 - g->x0);
+		height = g->y1 - g->y0;
+
+		if (width <= 0 || height <= 0) {
+			continue;
+		}
+
+		if (x + width + TTF_GLYPH_PADDING > atlasSize) {
+			x = TTF_GLYPH_PADDING;
+			y += rowHeight + TTF_GLYPH_PADDING;
+			rowHeight = 0;
+		}
+
+		if (x + width + TTF_GLYPH_PADDING > atlasSize ||
+			y + height + TTF_GLYPH_PADDING > atlasSize) {
+			return qfalse;
+		}
+
+		g->x = x;
+		g->y = y;
+
+		x += width + TTF_GLYPH_PADDING;
+
+		if (height > rowHeight) {
+			rowHeight = height;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+===============
+R_RegisterTrueTypeFont
+
+Looks for <fontName>.ttf, falling back to the default font file. Returns
+qfalse if no scalable font is available, in which case the caller should
+use the prerendered fonts instead.
+===============
+*/
+static qboolean R_RegisterTrueTypeFont(const char *fontName, int pointSize, fontInfo_t *font) {
+	static ttfGlyph_t glyphs[GLYPHS_PER_FONT];
+	stbtt_fontinfo info;
+	char name[MAX_QPATH];
+	char fileName[MAX_QPATH];
+	void *fileData = NULL;
+	unsigned char *alpha, *rgba;
+	image_t *image;
+	qhandle_t shader;
+	float renderScale, scale;
+	int i, len, offset, atlasSize, maxAtlasSize;
+
+	if (!r_scalableFonts || !r_scalableFonts->integer) {
+		return qfalse;
+	}
+
+	Com_sprintf(fileName, sizeof(fileName), "%s.ttf", fontName);
+	if (ri.FS_ReadFile(fileName, NULL) <= 0) {
+		Com_sprintf(fileName, sizeof(fileName), "%s.ttf", TTF_DEFAULT_FONT);
+	}
+
+	Com_sprintf(name, sizeof(name), "%s_%i", fileName, pointSize);
+	for (i = 0; i < registeredFontCount; i++) {
+		if (Q_stricmp(name, registeredFont[i].name) == 0) {
+			Com_Memcpy(font, &registeredFont[i], sizeof(fontInfo_t));
+			return qtrue;
+		}
+	}
+
+	if (registeredFontCount >= MAX_FONTS) {
+		return qfalse;
+	}
+
+	len = ri.FS_ReadFile(fileName, &fileData);
+	if (len <= 0 || !fileData) {
+		return qfalse;
+	}
+
+	offset = stbtt_GetFontOffsetForIndex(fileData, 0);
+	if (offset < 0 || !stbtt_InitFont(&info, fileData, offset)) {
+		ri.Printf(PRINT_WARNING, "RE_RegisterFont: '%s' is not a usable TrueType font\n", fileName);
+		ri.FS_FreeFile(fileData);
+		return qfalse;
+	}
+
+	maxAtlasSize = TTF_MAX_ATLAS_SIZE;
+	if (glConfig.maxTextureSize > 0 && glConfig.maxTextureSize < maxAtlasSize) {
+		maxAtlasSize = glConfig.maxTextureSize;
+	}
+
+	// the ui lays text out on a virtual 640x480 screen, so this is the
+	// factor by which it is magnified when drawn
+	renderScale = glConfig.vidHeight / 480.0f;
+	if (renderScale < 1.0f) {
+		renderScale = 1.0f;
+	}
+
+	// find the smallest atlas that holds every glyph, reducing the glyph
+	// size if even the largest atlas is too small
+	for (;;) {
+		scale = stbtt_ScaleForMappingEmToPixels(&info, pointSize * renderScale);
+
+		for (atlasSize = TTF_MIN_ATLAS_SIZE; atlasSize <= maxAtlasSize; atlasSize *= 2) {
+			if (R_LayoutTrueTypeFont(&info, scale, atlasSize, glyphs)) {
+				break;
+			}
+		}
+
+		if (atlasSize <= maxAtlasSize) {
+			break;
+		}
+
+		if (renderScale <= 1.0f) {
+			ri.Printf(PRINT_WARNING, "RE_RegisterFont: '%s' does not fit in a font atlas\n", fileName);
+			ri.FS_FreeFile(fileData);
+			return qfalse;
+		}
+
+		renderScale *= 0.9f;
+		if (renderScale < 1.0f) {
+			renderScale = 1.0f;
+		}
+	}
+
+	alpha = calloc(atlasSize * atlasSize, 1);
+	rgba = malloc(atlasSize * atlasSize * 4);
+	if (!alpha || !rgba) {
+		ri.Printf(PRINT_WARNING, "RE_RegisterFont: out of memory rasterizing '%s'\n", fileName);
+		free(alpha);
+		free(rgba);
+		ri.FS_FreeFile(fileData);
+		return qfalse;
+	}
+
+	Com_Memset(font, 0, sizeof(fontInfo_t));
+
+	for (i = GLYPH_START; i <= GLYPH_END; i++) {
+		ttfGlyph_t *g = &glyphs[i];
+		glyphInfo_t *out = &font->glyphs[i];
+		int advance, leftSideBearing;
+		int width = g->padLeft + (g->x1 - g->x0);
+		int height = g->y1 - g->y0;
+
+		if (!R_IsPrintableGlyph(i)) {
+			continue;
+		}
+
+		stbtt_GetGlyphHMetrics(&info, g->glyphIndex, &advance, &leftSideBearing);
+		out->xSkip = (int)(advance * scale + 0.5f);
+
+		if (g->glyphIndex == 0 || width <= 0 || height <= 0) {
+			continue;
+		}
+
+		stbtt_MakeGlyphBitmap(&info, alpha + (g->y * atlasSize) + g->x + g->padLeft,
+			g->x1 - g->x0, height, atlasSize, scale, scale, g->glyphIndex);
+
+		out->height = height;
+		out->top = -g->y0;
+		out->bottom = -g->y1;
+		out->pitch = width;
+		out->imageWidth = width;
+		out->imageHeight = height;
+		out->s = (float)g->x / atlasSize;
+		out->t = (float)g->y / atlasSize;
+		out->s2 = (float)(g->x + width) / atlasSize;
+		out->t2 = (float)(g->y + height) / atlasSize;
+	}
+
+	for (i = 0; i < atlasSize * atlasSize; i++) {
+		rgba[i * 4 + 0] = 255;
+		rgba[i * 4 + 1] = 255;
+		rgba[i * 4 + 2] = 255;
+		rgba[i * 4 + 3] = alpha[i];
+	}
+
+	Com_sprintf(fileName, sizeof(fileName), "fonts/ttfImage_%i_%i", registeredFontCount, pointSize);
+	image = R_CreateImage(fileName, rgba, atlasSize, atlasSize, IMGTYPE_COLORALPHA,
+		IMGFLAG_CLAMPTOEDGE | IMGFLAG_NO_COMPRESSION, 0);
+	shader = RE_RegisterShaderFromImage(fileName, LIGHTMAP_2D, image, qfalse);
+
+	for (i = GLYPH_START; i <= GLYPH_END; i++) {
+		font->glyphs[i].glyph = shader;
+		Q_strncpyz(font->glyphs[i].shaderName, fileName, sizeof(font->glyphs[i].shaderName));
+	}
+
+	// the ui scaling is based on a 48 point font
+	font->glyphScale = 48.0f / (pointSize * renderScale);
+	Q_strncpyz(font->name, name, sizeof(font->name));
+
+	Com_Memcpy(&registeredFont[registeredFontCount++], font, sizeof(fontInfo_t));
+
+	ri.Printf(PRINT_DEVELOPER, "RE_RegisterFont: rasterized '%s' at %.1f pixels in a %ix%i atlas\n",
+		name, pointSize * renderScale, atlasSize, atlasSize);
+
+	free(alpha);
+	free(rgba);
+	ri.FS_FreeFile(fileData);
+
+	return qtrue;
+}
+
 #ifdef BUILD_FREETYPE
 void R_GetGlyphInfo(FT_GlyphSlot glyph, int *left, int *right, int *width, int *top, int *bottom, int *height, int *pitch) {
 	*left  = _FLOOR( glyph->metrics.horiBearingX );
@@ -358,6 +616,10 @@ void RE_RegisterFont(const char *fontName, int pointSize, fontInfo_t *font) {
 
 	R_IssuePendingRenderCommands();
 
+	if (R_RegisterTrueTypeFont(fontName, pointSize, font)) {
+		return;
+	}
+
 	if (registeredFontCount >= MAX_FONTS) {
 		ri.Printf(PRINT_WARNING, "RE_RegisterFont: Too many fonts registered already.\n");
 		return;
@@ -545,6 +807,7 @@ void R_InitFreeType(void) {
 		ri.Printf(PRINT_WARNING, "R_InitFreeType: Unable to initialize FreeType.\n");
 	}
 #endif
+	r_scalableFonts = ri.Cvar_Get("r_scalableFonts", "1", CVAR_ARCHIVE | CVAR_LATCH);
 	registeredFontCount = 0;
 }
 
