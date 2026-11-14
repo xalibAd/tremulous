@@ -59,6 +59,10 @@ static int in_eventTime = 0;
 
 static SDL_Window *SDL_window = NULL;
 
+// Window size in screen coordinates as of the last (re)initialization or resize
+static int windowWidth = 0;
+static int windowHeight = 0;
+
 #define CTRL(a) ((a)-'a'+1)
 
 /*
@@ -342,24 +346,50 @@ static void IN_GobbleMotionEvents( void )
 
 /*
 ===============
+IN_GetWindowSize
+
+The window size in screen coordinates, which on HiDPI displays differs from
+the size of the drawable in pixels that the renderer reports
+===============
+*/
+static void IN_GetWindowSize( int *width, int *height )
+{
+	*width = *height = 0;
+
+	if( SDL_window )
+		SDL_GetWindowSize( SDL_window, width, height );
+
+	if( *width <= 0 || *height <= 0 )
+	{
+		*width = cls.glconfig.vidWidth;
+		*height = cls.glconfig.vidHeight;
+	}
+}
+
+/*
+===============
 IN_GetUIMousePosition
 ===============
 */
 static void IN_GetUIMousePosition( int *x, int *y )
 {
+	int width, height;
+
+	IN_GetWindowSize( &width, &height );
+
 	if( uivm )
 	{
 		int pos = VM_Call( uivm, UI_MOUSE_POSITION );
 		*x = pos & 0xFFFF;
 		*y = ( pos >> 16 ) & 0xFFFF;
 
-		*x = cls.glconfig.vidWidth * *x / 640;
-		*y = cls.glconfig.vidHeight * *y / 480;
+		*x = width * *x / 640;
+		*y = height * *y / 480;
 	}
 	else
 	{
-		*x = cls.glconfig.vidWidth / 2;
-		*y = cls.glconfig.vidHeight / 2;
+		*x = width / 2;
+		*y = height / 2;
 	}
 }
 
@@ -372,8 +402,12 @@ static void IN_SetUIMousePosition( int x, int y )
 {
 	if( uivm )
 	{
-		x = x * 640 / cls.glconfig.vidWidth;
-		y = y * 480 / cls.glconfig.vidHeight;
+		int width, height;
+
+		IN_GetWindowSize( &width, &height );
+
+		x = x * 640 / width;
+		y = y * 480 / height;
 		VM_Call( uivm, UI_SET_MOUSE_POSITION, x, y );
 	}
 }
@@ -1227,10 +1261,13 @@ static void IN_ProcessEvents( void )
 							}
 
 							// check if size actually changed
-							if( cls.glconfig.vidWidth == width && cls.glconfig.vidHeight == height )
+							if( windowWidth == width && windowHeight == height )
 							{
 								break;
 							}
+
+							windowWidth = width;
+							windowHeight = height;
 
 							Cvar_SetValue( "r_customwidth", width );
 							Cvar_SetValue( "r_customheight", height );
@@ -1357,6 +1394,7 @@ void IN_Init( void *windowData )
 	}
 
 	SDL_window = (SDL_Window *)windowData;
+	SDL_GetWindowSize( SDL_window, &windowWidth, &windowHeight );
 
 	Com_DPrintf( "\n------- Input Initialization -------\n" );
 

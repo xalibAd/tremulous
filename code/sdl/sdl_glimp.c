@@ -51,6 +51,7 @@ static SDL_GLContext SDL_glContext = NULL;
 cvar_t *r_allowSoftwareGL; // Don't abort out if a hardware visual can't be obtained
 cvar_t *r_allowResize; // make window resizable
 cvar_t *r_centerWindow;
+cvar_t *r_allowHighDPI; // render at native pixel density on HiDPI displays
 cvar_t *r_sdlDriver;
 cvar_t *r_preferOpenGLES;
 
@@ -415,6 +416,9 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder, qbool
 
 	if ( r_allowResize->integer )
 		flags |= SDL_WINDOW_RESIZABLE;
+
+	if ( r_allowHighDPI->integer )
+		flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 
 #ifdef USE_ICON
 	icon = SDL_CreateRGBSurfaceFrom(
@@ -826,6 +830,25 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder, qbool
 
 	SDL_ShowWindow( SDL_window );
 
+	// On HiDPI displays the window size is given in screen coordinates and
+	// the GL drawable can be larger; the renderer always works in pixels
+	if( r_allowHighDPI->integer )
+	{
+		int drawableWidth = 0, drawableHeight = 0;
+
+		SDL_GL_GetDrawableSize( SDL_window, &drawableWidth, &drawableHeight );
+
+		if( drawableWidth > 0 && drawableHeight > 0 &&
+				( drawableWidth != glConfig.vidWidth || drawableHeight != glConfig.vidHeight ) )
+		{
+			ri.Printf( PRINT_ALL, "HiDPI: %dx%d window has a %dx%d drawable\n",
+					glConfig.vidWidth, glConfig.vidHeight, drawableWidth, drawableHeight );
+
+			glConfig.vidWidth = drawableWidth;
+			glConfig.vidHeight = drawableHeight;
+		}
+	}
+
 	GLimp_DetectAvailableModes();
 
 	glstring = (char *) qglGetString (GL_RENDERER);
@@ -1083,6 +1106,7 @@ void GLimp_Init( qboolean fixedFunction )
 	r_sdlDriver = ri.Cvar_Get( "r_sdlDriver", "", CVAR_ROM );
 	r_allowResize = ri.Cvar_Get( "r_allowResize", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_centerWindow = ri.Cvar_Get( "r_centerWindow", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_allowHighDPI = ri.Cvar_Get( "r_allowHighDPI", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_preferOpenGLES = ri.Cvar_Get( "r_preferOpenGLES", "-1", CVAR_ARCHIVE | CVAR_LATCH );
 
 	if( ri.Cvar_VariableIntegerValue( "com_abnormalExit" ) )
