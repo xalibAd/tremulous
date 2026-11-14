@@ -79,6 +79,7 @@ vmCvar_t  ui_browserShowFull;
 vmCvar_t  ui_browserShowEmpty;
 
 vmCvar_t  ui_dedicated;
+vmCvar_t  ui_glCustom;
 vmCvar_t  ui_netSource;
 vmCvar_t  ui_selectedMap;
 vmCvar_t  ui_lastServerRefresh_0;
@@ -106,6 +107,7 @@ static cvarTable_t    cvarTable[ ] =
   { &ui_browserShowEmpty, "ui_browserShowEmpty", "1", CVAR_ARCHIVE },
 
   { &ui_dedicated, "ui_dedicated", "0", CVAR_ARCHIVE },
+  { &ui_glCustom, "ui_glCustom", "1", CVAR_ARCHIVE }, // the default video settings match "High"
   { &ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE },
   { &ui_selectedMap, "ui_selectedMap", "0", CVAR_ARCHIVE },
   { &ui_lastServerRefresh_0, "ui_lastServerRefresh_0", "", CVAR_ARCHIVE},
@@ -2704,6 +2706,32 @@ static void UI_LoadDemos( void )
 
 }
 
+/*
+===============
+UI_SyncVideoCvars
+
+Some video settings are offered as a single menu entry but are controlled by
+more than one cvar; bring the dependent ones in to line
+===============
+*/
+static void UI_SyncVideoCvars( void )
+{
+  char  renderer[ MAX_CVAR_VALUE_STRING ];
+  int   samples = (int)trap_Cvar_VariableValue( "r_ext_framebuffer_multisample" );
+  int   anisotropy = (int)trap_Cvar_VariableValue( "r_ext_max_anisotropy" );
+
+  trap_Cvar_VariableStringBuffer( "cl_renderer", renderer, sizeof( renderer ) );
+
+  // the OpenGL 2 renderer multisamples its framebuffer, whereas the
+  // OpenGL 1 renderer needs a multisampled window
+  if( Q_stricmp( renderer, "opengl1" ) == 0 )
+    trap_Cvar_SetValue( "r_ext_multisample", samples );
+  else
+    trap_Cvar_SetValue( "r_ext_multisample", 0 );
+
+  trap_Cvar_SetValue( "r_ext_texture_filter_anisotropic", anisotropy > 1 ? 1 : 0 );
+}
+
 static void UI_Update( const char *name )
 {
   int val = trap_Cvar_VariableValue( name );
@@ -2770,68 +2798,98 @@ static void UI_Update( const char *name )
   }
   else if( Q_stricmp( name, "ui_glCustom" ) == 0 )
   {
+    // settings that are no longer offered in the menus
+    trap_Cvar_SetValue( "r_vertexlight", 0 );
+    trap_Cvar_SetValue( "r_colorbits", 0 );
+    trap_Cvar_SetValue( "r_depthbits", 0 );
+    trap_Cvar_SetValue( "r_texturebits", 0 );
+
     switch( val )
     {
-      case 0: // high quality
+      case 0: // very high
         trap_Cvar_SetValue( "r_subdivisions", 4 );
-        trap_Cvar_SetValue( "r_vertexlight", 0 );
         trap_Cvar_SetValue( "r_lodbias", 0 );
-        trap_Cvar_SetValue( "r_colorbits", 32 );
-        trap_Cvar_SetValue( "r_depthbits", 24 );
         trap_Cvar_SetValue( "r_picmip", 0 );
-        trap_Cvar_SetValue( "r_texturebits", 32 );
+        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
+        trap_Cvar_SetValue( "r_ext_max_anisotropy", 16 );
+        trap_Cvar_SetValue( "r_ext_framebuffer_multisample", 8 );
+        trap_Cvar_SetValue( "r_hdr", 1 );
+        trap_Cvar_SetValue( "r_ssao", 1 );
+        trap_Cvar_SetValue( "r_sunShadows", 1 );
+        trap_Cvar_SetValue( "r_shadowMapSize", 2048 );
+        trap_Cvar_SetValue( "r_normalMapping", 1 );
+        trap_Cvar_SetValue( "r_specularMapping", 1 );
         trap_Cvar_SetValue( "r_fastSky", 0 );
         trap_Cvar_SetValue( "r_inGameVideo", 1 );
         trap_Cvar_SetValue( "cg_shadows", 1 );
         trap_Cvar_SetValue( "cg_bounceParticles", 1 );
-        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
         break;
 
-      case 1: // normal
-        trap_Cvar_SetValue( "r_subdivisions", 12 );
-        trap_Cvar_SetValue( "r_vertexlight", 0 );
+      case 1: // high
+        trap_Cvar_SetValue( "r_subdivisions", 4 );
         trap_Cvar_SetValue( "r_lodbias", 0 );
-        trap_Cvar_SetValue( "r_colorbits", 0 );
-        trap_Cvar_SetValue( "r_depthbits", 24 );
-        trap_Cvar_SetValue( "r_picmip", 1 );
-        trap_Cvar_SetValue( "r_texturebits", 0 );
+        trap_Cvar_SetValue( "r_picmip", 0 );
+        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
+        trap_Cvar_SetValue( "r_ext_max_anisotropy", 8 );
+        trap_Cvar_SetValue( "r_ext_framebuffer_multisample", 4 );
+        trap_Cvar_SetValue( "r_hdr", 1 );
+        trap_Cvar_SetValue( "r_ssao", 0 );
+        trap_Cvar_SetValue( "r_sunShadows", 1 );
+        trap_Cvar_SetValue( "r_shadowMapSize", 1024 );
+        trap_Cvar_SetValue( "r_normalMapping", 1 );
+        trap_Cvar_SetValue( "r_specularMapping", 1 );
         trap_Cvar_SetValue( "r_fastSky", 0 );
         trap_Cvar_SetValue( "r_inGameVideo", 1 );
+        trap_Cvar_SetValue( "cg_shadows", 1 );
+        trap_Cvar_SetValue( "cg_bounceParticles", 1 );
+        break;
+
+      case 2: // medium
+        trap_Cvar_SetValue( "r_subdivisions", 12 );
+        trap_Cvar_SetValue( "r_lodbias", 0 );
+        trap_Cvar_SetValue( "r_picmip", 0 );
         trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
-        trap_Cvar_SetValue( "cg_shadows", 0 );
+        trap_Cvar_SetValue( "r_ext_max_anisotropy", 4 );
+        trap_Cvar_SetValue( "r_ext_framebuffer_multisample", 2 );
+        trap_Cvar_SetValue( "r_hdr", 1 );
+        trap_Cvar_SetValue( "r_ssao", 0 );
+        trap_Cvar_SetValue( "r_sunShadows", 1 );
+        trap_Cvar_SetValue( "r_shadowMapSize", 512 );
+        trap_Cvar_SetValue( "r_normalMapping", 1 );
+        trap_Cvar_SetValue( "r_specularMapping", 1 );
+        trap_Cvar_SetValue( "r_fastSky", 0 );
+        trap_Cvar_SetValue( "r_inGameVideo", 1 );
+        trap_Cvar_SetValue( "cg_shadows", 1 );
         trap_Cvar_SetValue( "cg_bounceParticles", 0 );
         break;
 
-      case 2: // fast
-        trap_Cvar_SetValue( "r_subdivisions", 8 );
-        trap_Cvar_SetValue( "r_vertexlight", 0 );
-        trap_Cvar_SetValue( "r_lodbias", 1 );
-        trap_Cvar_SetValue( "r_colorbits", 0 );
-        trap_Cvar_SetValue( "r_depthbits", 0 );
-        trap_Cvar_SetValue( "r_picmip", 1 );
-        trap_Cvar_SetValue( "r_texturebits", 0 );
-        trap_Cvar_SetValue( "cg_shadows", 0 );
-        trap_Cvar_SetValue( "r_fastSky", 1 );
-        trap_Cvar_SetValue( "r_inGameVideo", 0 );
-        trap_Cvar_SetValue( "cg_bounceParticles", 0 );
-        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_NEAREST" );
-        break;
-
-      case 3: // fastest
+      case 3: // low
         trap_Cvar_SetValue( "r_subdivisions", 20 );
-        trap_Cvar_SetValue( "r_vertexlight", 1 );
-        trap_Cvar_SetValue( "r_lodbias", 2 );
-        trap_Cvar_SetValue( "r_colorbits", 16 );
-        trap_Cvar_SetValue( "r_depthbits", 16 );
-        trap_Cvar_SetValue( "r_picmip", 2 );
-        trap_Cvar_SetValue( "r_texturebits", 16 );
-        trap_Cvar_SetValue( "cg_shadows", 0 );
+        trap_Cvar_SetValue( "r_lodbias", 1 );
+        trap_Cvar_SetValue( "r_picmip", 1 );
+        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_NEAREST" );
+        trap_Cvar_SetValue( "r_ext_max_anisotropy", 1 );
+        trap_Cvar_SetValue( "r_ext_framebuffer_multisample", 0 );
+        trap_Cvar_SetValue( "r_hdr", 0 );
+        trap_Cvar_SetValue( "r_ssao", 0 );
+        trap_Cvar_SetValue( "r_sunShadows", 0 );
+        trap_Cvar_SetValue( "r_shadowMapSize", 512 );
+        trap_Cvar_SetValue( "r_normalMapping", 0 );
+        trap_Cvar_SetValue( "r_specularMapping", 0 );
         trap_Cvar_SetValue( "r_fastSky", 1 );
         trap_Cvar_SetValue( "r_inGameVideo", 0 );
+        trap_Cvar_SetValue( "cg_shadows", 0 );
         trap_Cvar_SetValue( "cg_bounceParticles", 0 );
-        trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_NEAREST" );
         break;
     }
+
+    UI_SyncVideoCvars( );
+  }
+  else if( Q_stricmp( name, "cl_renderer" ) == 0 ||
+           Q_stricmp( name, "r_ext_framebuffer_multisample" ) == 0 ||
+           Q_stricmp( name, "r_ext_max_anisotropy" ) == 0 )
+  {
+    UI_SyncVideoCvars( );
   }
   else if( Q_stricmp( name, "ui_mousePitch" ) == 0 )
   {
@@ -3445,10 +3503,8 @@ static int UI_FeederCount( int feederID )
     return uiInfo.humanBuildCount;
   else if( feederID == FEEDER_RESOLUTIONS )
   {
-    if( UI_FeederInitialise( feederID ) == uiInfo.numResolutions )
-      return uiInfo.numResolutions + 1;
-    else
-      return uiInfo.numResolutions;
+    // the detected modes, plus an entry for the desktop resolution
+    return uiInfo.numResolutions + 1;
   }
 
   return 0;
@@ -3729,6 +3785,18 @@ static const char *UI_FeederItemText( int feederID, int index, int column, qhand
 
     w = (int)trap_Cvar_VariableValue( "r_customwidth" );
     h = (int)trap_Cvar_VariableValue( "r_customheight" );
+
+    // the extra entry selects the desktop resolution, unless it is needed
+    // to show a custom mode that is not in the list
+    if( (int)trap_Cvar_VariableValue( "r_mode" ) != -1 )
+      return "Desktop";
+
+    for( index = 0; index < uiInfo.numResolutions; index++ )
+    {
+      if( w == uiInfo.resolutions[ index ].w && h == uiInfo.resolutions[ index ].h )
+        return "Desktop";
+    }
+
     Com_sprintf( resolution, sizeof( resolution ), "Custom (%dx%d)", w, h );
 
     return resolution;
@@ -3868,6 +3936,11 @@ static void UI_FeederSelection( int feederID, int index )
       trap_Cvar_Set( "r_customheight", va( "%d", uiInfo.resolutions[ index ].h ) );
       trap_Cvar_Set( "r_mode", "-1" );
     }
+    else if( index == uiInfo.numResolutions )
+    {
+      // the extra entry at the end of the list
+      trap_Cvar_Set( "r_mode", "-2" );
+    }
 
     uiInfo.resolutionIndex = index;
   }
@@ -3880,6 +3953,10 @@ static int UI_FeederInitialise( int feederID )
     int i;
     int w = trap_Cvar_VariableValue( "r_customwidth" );
     int h = trap_Cvar_VariableValue( "r_customheight" );
+
+    // anything other than a custom mode is shown as the extra entry
+    if( (int)trap_Cvar_VariableValue( "r_mode" ) != -1 )
+      return uiInfo.numResolutions;
 
     for( i = 0; i < uiInfo.numResolutions; i++ )
     {
