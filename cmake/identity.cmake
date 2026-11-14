@@ -15,7 +15,7 @@ set(WINDOWS_ICON_PATH ${CMAKE_SOURCE_DIR}/misc/tremulous.ico)
 set(MACOS_ICON_PATH ${CMAKE_SOURCE_DIR}/misc/tremulous.icns)
 set(MACOS_BUNDLE_ID net.tremulous.${CLIENT_NAME})
 
-set(COPYRIGHT "© Darklegion Development 2005-2025")
+set(COPYRIGHT "© Darklegion Development 2005-2026")
 
 set(CONTACT_EMAIL "tim@ngus.net")
 set(PROTOCOL_HANDLER_SCHEME tremulous)
