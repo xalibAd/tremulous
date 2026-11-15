@@ -106,6 +106,7 @@ include(renderer_gl1)
 include(renderer_gl2)
 include(client)
 include(basegame)
+include(assets)
 
 include(post_configure)
 include(installer)
