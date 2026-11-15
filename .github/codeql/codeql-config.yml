@@ -1,0 +1,7 @@
+name: Tremulous
+
+# Bundled third party libraries and the QVM compiler are maintained
+# elsewhere; findings in them are not actionable here
+paths-ignore:
+  - code/thirdparty
+  - code/tools

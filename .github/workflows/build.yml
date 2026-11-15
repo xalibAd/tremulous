@@ -1,6 +1,16 @@
 name: Build
 on: [push, pull_request]
 
+# Jobs only get to read the repository unless they ask for more
+permissions:
+  contents: read
+
+# A newer push to a branch or pull request supersedes the runs before it,
+# except on main where every commit is built and released
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   versions:
     name: Extract Versions
@@ -9,7 +19,7 @@ jobs:
       base: ${{ steps.extract-version.outputs.base }}
       sdl: ${{ steps.extract-library-versions.outputs.sdl }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: CMake Configure
       id: extract-version
       run: |
@@ -28,19 +38,25 @@ jobs:
     runs-on: ubuntu-22.04
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install libsdl2-dev
+        sudo apt-get install libsdl2-dev xvfb libgl1-mesa-dri
     - name: Compile
       run: |
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
+    - name: Smoke Test
+      run: |
+        misc/ci-smoke-test.sh build/Release opengl2
+        misc/ci-smoke-test.sh build/Release opengl1
+    - name: Package
+      run: |
         cpack --config build/CPackConfig.cmake -B build/installer --verbose
         mv build/installer/*.deb build/Release
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ github.event.repository.name }}-linux-${{ needs.versions.outputs.base }}
         path: |
@@ -50,7 +66,7 @@ jobs:
     runs-on: windows-2022
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Compile
       run: |
         cmake -S . -B build -G "Visual Studio 17 2022"
@@ -58,19 +74,20 @@ jobs:
         cpack --config build/CPackConfig.cmake -B build/installer --verbose
         Move-Item -Path "build/installer/*.exe" -Destination "build/Release"
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ github.event.repository.name }}-windows-msvc-${{ needs.versions.outputs.base }}
         path: |
           build/Release/**/*.dll
           build/Release/**/*.exe
           build/Release/**/*.qvm
+          build/Release/**/*.pk3
   windows-mingw:
     name: Windows MinGW
     runs-on: windows-2022
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Compile
       run: |
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -78,19 +95,20 @@ jobs:
         cpack --config build/CPackConfig.cmake -B build/installer --verbose
         Move-Item -Path "build/installer/*.exe" -Destination "build/Release"
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ github.event.repository.name }}-windows-mingw-${{ needs.versions.outputs.base }}
         path: |
           build/Release/**/*.dll
           build/Release/**/*.exe
           build/Release/**/*.qvm
+          build/Release/**/*.pk3
   macos:
     name: macOS
     runs-on: macos-15
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Import Code Signing Certificate
       if: github.ref_name == 'main'
       run: |
@@ -129,7 +147,7 @@ jobs:
         APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ github.event.repository.name }}-macOS-${{ needs.versions.outputs.base }}
         path: |
@@ -139,9 +157,9 @@ jobs:
     runs-on: ubuntu-22.04
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install emsdk
-      uses: mymindstorm/setup-emsdk@v13
+      uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
       with:
         version: 3.1.58
     - name: Compile
@@ -149,7 +167,7 @@ jobs:
         emcmake cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ github.event.repository.name }}-emscripten-${{ needs.versions.outputs.base }}
         path: |
@@ -159,7 +177,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -174,13 +192,13 @@ jobs:
     runs-on: ubuntu-22.04
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Dependencies
       run: |
         sudo apt-get update
         # There is no SDL3 package here, so build it; libsdl2-dev brings in
         # the X11 and audio headers that it needs
-        sudo apt-get install libsdl2-dev
+        sudo apt-get install libsdl2-dev xvfb libgl1-mesa-dri
     - name: Build SDL3
       run: |
         . misc/lib-versions.sh
@@ -194,12 +212,15 @@ jobs:
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${PWD}/sdl3
         grep -q "sdl3/sdl_glimp.c" build/build.ninja
         cmake --build build
+    - name: Smoke Test
+      run: |
+        misc/ci-smoke-test.sh build/Release opengl2
   linux-32bit:
     name: Linux 32-bit
     runs-on: ubuntu-22.04
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Dependencies
       run: |
         sudo dpkg --add-architecture i386
@@ -214,9 +235,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Compile
-      uses: vmactions/freebsd-vm@v1
+      uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1.6.0
       with:
         prepare: |
           pkg install -y cmake ninja devel/sdl20
@@ -228,9 +249,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: versions
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Compile
-      uses: vmactions/openbsd-vm@v1
+      uses: vmactions/openbsd-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
       with:
         prepare: |
           pkg_add cmake ninja sdl2
@@ -238,40 +259,49 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
 
+  # A release is published for every push to main, and for a tag that matches
+  # the version in the build system
   check-is-release:
-    if: github.event_name != 'pull_request'
-    name: Check For Release Tag
+    if: github.event_name == 'push'
+    name: Check For Release
     runs-on: ubuntu-latest
     needs: versions
     outputs:
       is-release: ${{ steps.is-release-test.outputs.result }}
+      tag: ${{ steps.is-release-test.outputs.tag }}
+      title: ${{ steps.is-release-test.outputs.title }}
     steps:
-    - uses: actions/checkout@v4
-    - name: Check Release Tag
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Check Release
       id: is-release-test
+      env:
+        VERSION: ${{ needs.versions.outputs.base }}
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        GIT_TAG=$(git describe --exact-match --tags || true)
-        if [[ -z "${GIT_TAG}" || "${{ github.ref_type }}" != 'tag' ]]
+        if [[ "${REF_TYPE}" = 'tag' && "${REF_NAME}" = "${VERSION}" ]]
         then
-          echo "Not tagged"
-          echo "result=false" >> $GITHUB_OUTPUT
+          echo "Tag '${REF_NAME}' is a release"
+          echo "result=true" >> $GITHUB_OUTPUT
+          echo "tag=${REF_NAME}" >> $GITHUB_OUTPUT
+          echo "title=Release ${VERSION}" >> $GITHUB_OUTPUT
+        elif [[ "${REF_TYPE}" = 'branch' && "${REF_NAME}" = 'main' ]]
+        then
+          echo "A push to main is released as '${VERSION}'"
+          echo "result=true" >> $GITHUB_OUTPUT
+          echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+          echo "title=Build ${VERSION}" >> $GITHUB_OUTPUT
         else
-          echo "GIT_TAG: ${GIT_TAG}""
-          echo "needs.versions.outputs.base: ${{ needs.versions.outputs.base }}""
-          if [[ "${GIT_TAG}" = "${{ needs.versions.outputs.base }}" ]]
-          then
-            echo "'${GIT_TAG}' is a release"
-            echo "result=true" >> $GITHUB_OUTPUT
-          else
-            echo "'${GIT_TAG}' is not a release"
-            echo "result=false" >> $GITHUB_OUTPUT
-          fi
+          echo "Not a release"
+          echo "result=false" >> $GITHUB_OUTPUT
         fi
 
   release:
     name: Release
-    if: github.event_name != 'pull_request' && needs.check-is-release.outputs.is-release == 'true'
+    if: github.event_name == 'push' && needs.check-is-release.outputs.is-release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs:
       - versions
       - check-is-release
@@ -279,26 +309,52 @@ jobs:
       - macos
       - linux
       - emscripten
+    env:
+      NAME: ${{ github.event.repository.name }}
+      VERSION: ${{ needs.versions.outputs.base }}
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
     - name: Prepare Release Artifacts
       run: |
         mkdir release-artifacts
-        mv ${{ github.event.repository.name }}-linux-${{ needs.versions.outputs.base }}/${{ github.event.repository.name }}-${{ needs.versions.outputs.base }}.deb \
-          release-artifacts
-        zip -r9 release-artifacts/${{ github.event.repository.name }}-linux-${{ needs.versions.outputs.base }}.zip \
-          ${{ github.event.repository.name }}-linux-${{ needs.versions.outputs.base }}
-        mv ${{ github.event.repository.name }}-windows-msvc-${{ needs.versions.outputs.base }}/${{ github.event.repository.name }}-${{ needs.versions.outputs.base }}.exe \
-          release-artifacts
-        mv ${{ github.event.repository.name }}-macOS-${{ needs.versions.outputs.base }}/${{ github.event.repository.name }}-${{ needs.versions.outputs.base }}.dmg \
-          release-artifacts
-        zip -r9 release-artifacts/${{ github.event.repository.name }}-emscripten-${{ needs.versions.outputs.base }}.zip \
-          ${{ github.event.repository.name }}-emscripten-${{ needs.versions.outputs.base }}
+
+        # Installers
+        mv ${NAME}-linux-${VERSION}/*.deb release-artifacts/${NAME}-${VERSION}-linux-x86_64.deb
+        mv ${NAME}-windows-msvc-${VERSION}/Tremulous-*.exe release-artifacts/${NAME}-${VERSION}-windows-x86_64-installer.exe
+        mv ${NAME}-macOS-${VERSION}/*.dmg release-artifacts/${NAME}-${VERSION}-macos-universal.dmg
+
+        # Archives that run from wherever they are unpacked. Artifacts do
+        # not keep file permissions, so restore the executable bits.
+        chmod +x ${NAME}-linux-${VERSION}/tremulous ${NAME}-linux-${VERSION}/tremded
+        tar -czf release-artifacts/${NAME}-${VERSION}-linux-x86_64.tar.gz ${NAME}-linux-${VERSION}
+        zip -r9 release-artifacts/${NAME}-${VERSION}-windows-x86_64.zip ${NAME}-windows-msvc-${VERSION}
+        zip -r9 release-artifacts/${NAME}-${VERSION}-emscripten.zip ${NAME}-emscripten-${VERSION}
+
+        (cd release-artifacts && sha256sum * > SHA256SUMS.txt)
+        ls -l release-artifacts
     - name: Publish Release Artifacts
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
       with:
-        tag_name: ${{ github.ref }}
-        name: Release ${{ needs.versions.outputs.base }}
+        tag_name: ${{ needs.check-is-release.outputs.tag }}
+        target_commitish: ${{ github.sha }}
+        name: ${{ needs.check-is-release.outputs.title }}
+        generate_release_notes: true
         files: release-artifacts/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          Executables for Windows, Linux and macOS, built from this commit.
+
+          These contain the game engine, the game logic and the menus, but
+          not the game data. To play, copy the `.pk3` files from the `base`
+          directories of Tremulous 1.1.0 and of the GPP1 update into this
+          build's `base` directory.
+
+          | File | Platform |
+          | --- | --- |
+          | `*-windows-x86_64-installer.exe` | Windows installer |
+          | `*-windows-x86_64.zip` | Windows, unpack and run |
+          | `*-macos-universal.dmg` | macOS, Intel and Apple Silicon |
+          | `*-linux-x86_64.deb` | Debian and Ubuntu package |
+          | `*-linux-x86_64.tar.gz` | Linux, unpack and run |
+          | `*-emscripten.zip` | Web build |
+
+          `SHA256SUMS.txt` has the checksums of all of the above.
