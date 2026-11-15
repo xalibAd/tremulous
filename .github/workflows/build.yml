@@ -232,7 +232,7 @@ jobs:
         sudo apt-get update
         # There is no SDL3 package here, so build it; libsdl2-dev brings in
         # the X11 and audio headers that it needs
-        sudo apt-get install libsdl2-dev xvfb libgl1-mesa-dri
+        sudo apt-get install libsdl2-dev libxtst-dev xvfb libgl1-mesa-dri
     - name: Build SDL3
       run: |
         . misc/lib-versions.sh
