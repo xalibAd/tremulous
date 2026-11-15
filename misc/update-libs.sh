@@ -80,6 +80,10 @@ prepare "https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSI
     "" \
     "\./include/.*\.h"
 
+prepare "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz" \
+    "" \
+    "\./include/SDL3/.*\.h"
+
 TMPDIR=$(mktemp -d)
 cd ${TMPDIR}
 
@@ -98,6 +102,25 @@ cp ${TMPDIR}/SDL2-${SDL_VERSION}/lib/x64/SDL2.lib ${CODE}/libs/win64/
 cp ${TMPDIR}/SDL2-${SDL_VERSION}/lib/x64/SDL2main.lib ${CODE}/libs/win64/
 cp ${TMPDIR}/SDL2-${SDL_VERSION}/x86_64-w64-mingw32/lib/libSDL2.dll.a ${CODE}/libs/win64/
 cp ${TMPDIR}/SDL2-${SDL_VERSION}/x86_64-w64-mingw32/lib/libSDL2main.a ${CODE}/libs/win64/
+
+curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-devel-${SDL3_VERSION}-mingw.tar.gz" | tar -xvz
+curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-devel-${SDL3_VERSION}-VC.zip" \
+    -o temp.zip && unzip -o temp.zip && rm temp.zip
+
+# SDL3 has no SDLmain library
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/lib/x86/SDL3.dll ${CODE}/libs/win32/
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/lib/x86/SDL3.lib ${CODE}/libs/win32/
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/i686-w64-mingw32/lib/libSDL3.dll.a ${CODE}/libs/win32/
+
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/lib/x64/SDL3.dll ${CODE}/libs/win64/
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/lib/x64/SDL3.lib ${CODE}/libs/win64/
+cp ${TMPDIR}/SDL3-${SDL3_VERSION}/x86_64-w64-mingw32/lib/libSDL3.dll.a ${CODE}/libs/win64/
+
+# The macOS library is the universal binary from the official framework,
+# unmodified; cmake/libraries/sdl.cmake deals with its install name
+curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.dmg" \
+    -o SDL3.dmg && 7z x -y SDL3.dmg "SDL3/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/SDL3" > /dev/null
+cp ${TMPDIR}/SDL3/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/SDL3 ${CODE}/libs/macos/libSDL3.0.dylib
 
 cd
 rm -r ${TMPDIR}

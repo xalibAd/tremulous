@@ -1,8 +1,8 @@
 # Import variables from misc/lib-versions.sh
 file(STRINGS ${CMAKE_SOURCE_DIR}/misc/lib-versions.sh LIB_VERSIONS_CONTENT
-    REGEX "^[A-Z_]+=[^ ]+")
+    REGEX "^[A-Z0-9_]+=[^ ]+")
 foreach(LINE ${LIB_VERSIONS_CONTENT})
-    if(LINE MATCHES "^([A-Z_]+)=(.+)$")
+    if(LINE MATCHES "^([A-Z0-9_]+)=(.+)$")
         set(${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
     endif()
 endforeach()

@@ -38,6 +38,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef DEDICATED
 #if defined(USE_SDL3)
 #	include <SDL3/SDL.h>
+	// SDL3 has no SDLmain library; this header provides the platform's
+	// entry point (WinMain on Windows) for the main() in this file
+#	include <SDL3/SDL_main.h>
 #elif defined(USE_INTERNAL_SDL_HEADERS)
 #	include "SDL.h"
 #	include "SDL_cpuinfo.h"

@@ -169,6 +169,31 @@ jobs:
       run: |
         cmake -S . -B build -G Ninja -DUSE_INTERNAL_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
         cmake --build build
+  linux-sdl3:
+    name: Linux (SDL3)
+    runs-on: ubuntu-22.04
+    needs: versions
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        # There is no SDL3 package here, so build it; libsdl2-dev brings in
+        # the X11 and audio headers that it needs
+        sudo apt-get install libsdl2-dev
+    - name: Build SDL3
+      run: |
+        . misc/lib-versions.sh
+        curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz" | tar -xz
+        cmake -S SDL3-${SDL3_VERSION} -B sdl3-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=${PWD}/sdl3 -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+        cmake --build sdl3-build
+        cmake --install sdl3-build
+    - name: Compile
+      run: |
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${PWD}/sdl3
+        grep -q "sdl3/sdl_glimp.c" build/build.ninja
+        cmake --build build
   linux-32bit:
     name: Linux 32-bit
     runs-on: ubuntu-22.04
