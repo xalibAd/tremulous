@@ -296,15 +296,13 @@ jobs:
           echo "result=false" >> $GITHUB_OUTPUT
         fi
 
-  release:
-    name: Release
-    if: github.event_name == 'push' && needs.check-is-release.outputs.is-release == 'true'
+  # Put together what a release consists of. This runs for every push so that
+  # it is tested before it matters; the result is an artifact of the run.
+  package:
+    name: Package
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     needs:
       - versions
-      - check-is-release
       - windows-msvc
       - macos
       - linux
@@ -332,6 +330,33 @@ jobs:
 
         (cd release-artifacts && sha256sum * > SHA256SUMS.txt)
         ls -l release-artifacts
+
+        echo "### Release artifacts" >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        cat release-artifacts/SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        echo "--- Linux archive"; tar -tzf release-artifacts/*-linux-x86_64.tar.gz
+        echo "--- Windows archive"; unzip -l release-artifacts/*-windows-x86_64.zip
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: release-artifacts
+        path: release-artifacts/*
+        compression-level: 0
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && needs.check-is-release.outputs.is-release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs:
+      - check-is-release
+      - package
+    steps:
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: release-artifacts
+        path: release-artifacts
     - name: Publish Release Artifacts
       uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
       with:

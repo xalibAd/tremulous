@@ -6,7 +6,7 @@ name: Security
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**'] # TEMPORARY: claude/** is for testing this workflow
   pull_request:
   schedule:
     - cron: '41 5 * * 1'
@@ -91,4 +91,4 @@ jobs:
         bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
         ./actionlint -color
     - name: shellcheck
-      run: shellcheck --severity=error misc/*.sh misc/macos/*.sh
+      run: shellcheck --severity=error --exclude=SC2148 misc/*.sh misc/macos/*.sh

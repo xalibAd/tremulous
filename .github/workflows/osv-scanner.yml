@@ -5,7 +5,7 @@ name: OSV-Scanner
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**'] # TEMPORARY: claude/** is for testing this workflow
   pull_request:
     branches: [main]
   schedule:
