@@ -108,8 +108,9 @@ static qboolean CG_ParseWeaponAnimationFile( const char *filename, weaponInfo_t 
 
   // load the file
   len = trap_FS_FOpenFile( filename, &f, FS_READ );
+  // Weapon animations are optional; the released game data has none
   if( len < 0 )
-    return qfalse;
+    return qtrue;
 
   if( len == 0 || len >= sizeof( text ) - 1 )
   {
