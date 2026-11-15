@@ -26,6 +26,9 @@ Every commit merged to `main` is published under
 These are complete games: they include the original game data, so there is
 nothing else to download. `SHA256SUMS.txt` has the checksums.
 
+Commits on the `development` branch are published the same way, marked as
+prereleases, for testing changes before they reach `main`.
+
 Notes:
 
 - The macOS app is not code signed. Open it with right click > Open the first
@@ -111,7 +114,8 @@ added on top of it.
 - **Smoke test** on Linux: the dedicated server and the client are started
   under a virtual display, and a local game is started on a map with each
   renderer.
-- **Releases** are published automatically for every push to `main`.
+- **Releases** are published automatically for every push to `main`, and
+  prereleases for every push to `development`.
 - **Security and quality checks**: CodeQL, secret scanning with gitleaks,
   OSV-Scanner, dependency review, cppcheck, linting of the workflows and
   scripts, OpenSSF Scorecard, and a check of the bundled library versions
