@@ -475,7 +475,7 @@ void CG_RemoveNotifyLine( void )
     cg.consoleText[ i ] = cg.consoleText[ i + offset ];
 
   //pop up the first consoleLine
-  for( i = 0; i < cg.numConsoleLines; i++ )
+  for( i = 0; i < cg.numConsoleLines - 1; i++ )
     cg.consoleLines[ i ] = cg.consoleLines[ i + 1 ];
 
   cg.numConsoleLines--;
@@ -511,9 +511,16 @@ void CG_AddNotifyText( void )
   if( cg.numConsoleLines == MAX_CONSOLE_LINES )
     CG_RemoveNotifyLine( );
 
+  // Make room if the text would not fit
+  while( cg.numConsoleLines > 0 &&
+         strlen( cg.consoleText ) + bufferLen >= MAX_CONSOLE_TEXT )
+    CG_RemoveNotifyLine( );
+
+  textLen = strlen( cg.consoleText );
   Q_strcat( cg.consoleText, MAX_CONSOLE_TEXT, buffer );
   cg.consoleLines[ cg.numConsoleLines ].time = cg.time;
-  cg.consoleLines[ cg.numConsoleLines ].length = bufferLen;
+  // the text is truncated if it is too long even for an empty buffer
+  cg.consoleLines[ cg.numConsoleLines ].length = strlen( cg.consoleText ) - textLen;
   cg.numConsoleLines++;
 }
 
