@@ -153,7 +153,7 @@ For Emscripten,
 
 Installation, for *nix
   1. Set the CMAKE_INSTALL_PREFIX to your prefered installation directory.
-     By default it will be set to /opt/quake3/.
+     By default it will be set to /opt/tremulous/.
   2. `cmake --install build`.
 
 The following CMake variables may be set, using `-D` on the command line.
