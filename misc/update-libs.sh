@@ -69,7 +69,7 @@ prepare "https://www.ijg.org/files/jpegsrc.v${JPEG_VERSION}.tar.gz" \
     "\./\(jmem\(ansi\|dos\|mac\|name\)\|jpegtran\)\.c"
 
 prepare "https://curl.se/download/curl-${CURL_VERSION}.tar.gz" \
-    "./configure --with-openssl" \
+    "./configure --with-openssl --without-libpsl" \
     "\.*/include/.*\.h"
 
 prepare "https://github.com/kcat/openal-soft/archive/refs/tags/${OPENAL_VERSION}.tar.gz" \
